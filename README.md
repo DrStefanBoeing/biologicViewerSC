@@ -8,7 +8,7 @@ As input we need only your analysed Seurat object. The app can be used in two mo
 Let's start by installing required R-packages:
 ```
 install.packages("devtools")
-devtools::install_github("DrStefanBoeing/biologicSeqTools")
+devtools::install_github("decusinlabore/biologicSeqTools")
 devtools::install_github("DrStefanBoeing/biologicViewerSC")
 
 ```
