@@ -34,7 +34,7 @@ testObj <- pbmc_small %>%
     FindClusters(resolution = 0.5)
 
 
-
+testObj@meta.data$seurat_clusters <- as.character(testObj@meta.data$seurat_clusters)
 testObj@meta.data[["meta_Region"]] <- "RandomAcat"
 testObj@meta.data[1:20,"meta_Region"] <- "RandomBcat"
 
