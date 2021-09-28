@@ -491,18 +491,22 @@ writeAppParameterFiles <- function(
     ## Write menu ParameterFile                                              ##
     pos <- grep("catColorList", names(params))
     
-    menuList <- params
+    menuListP <- params
     if (length(pos) > 0){
-        menuList <- menuList[-pos]
+        menuList <- menuListP[-pos]
     }
     
-    mList <- menuList
+    mList <- list()
     for (i in 1:length(menuList)){
         mList[[i]] <- rbind(data.frame(
           menuName = rep(names(menuList)[i], length(menuList[[i]])),
+          colOption = menuList[[i]],
+          colOptionName = menuList[[i]],
           colSel = menuList[[i]],
           displayOrder = 1:length(menuList[[i]])
         ))
+        
+        
     }
     
     
@@ -515,11 +519,11 @@ writeAppParameterFiles <- function(
     dfM$displayName <- gsub("splitPlotsBy", "Split Plots By", dfM$displayName)
     dfM$displayName <- gsub("colorPlotsBy", "Color Plots By", dfM$displayName)
     
-    dfM <- dfM[, c("menuName", "displayName", "colSel", "displayOrder")]
+    dfM <- dfM[, c("menuName", "displayName", "colOption", "colOptionName" , "displayOrder", "displayName")]
     
     outDir <- paste0(
-      projectPath,
-      project_id, "_app/parameters"
+        projectPath,
+        project_id, "_app/parameters"
     )
     
     if (!dir.exists(outDir)){
@@ -547,26 +551,42 @@ writeAppParameterFiles <- function(
     ###########################################################################
     ## save sample color list                                                ##
     
+    
+    pos <- grep("catColorList", names(params))
+    # 
+    # menuList <- params
+    # if (length(pos) > 0){
+    #   menuList <- menuList[-pos]
+    # }
+    
+    #dfCol <- 
+    
     colorList <- params[[pos]]
     
-    
-    menuList <- colorList
     mList <- list()
-    for (i in 1:length(menuList)){
+    for (i in 1:length(colorList)){
       mList[[i]] <- rbind(data.frame(
-        menuName = rep(names(menuList)[i], length(menuList[[i]])),
-        colOption = names(menuList[[i]]),
-        colOptionName = gsub("_", " ", names(menuList[[i]])),
-        colSel = menuList[[i]],
-        displayOrder = 1:length(menuList[[i]])
+        menuName = rep(names(colorList)[i], length(colorList[[i]])),
+        colOption = names(colorList[[i]]),
+        colOptionName = gsub("_", " ", names(colorList[[i]])),
+        colSel = as.vector(colorList[[i]]),
+        displayOrder = 1:length(colorList[[i]])
       ))
+      
+      
     }
-    
     
     dfC <- data.frame(do.call(rbind,mList), stringsAsFactors = F)
     row.names(dfC) <- NULL
     
     dfC <- dfC[, c("menuName", "colOption", "colOptionName", "colSel", "displayOrder")]
+    
+    menuList <- params
+    
+    dfCol <- data.frame(
+        columnName = names(unlist(menuList[[pos]])), 
+        colOption = as.vector(unlist(menuList[[pos]]))
+    )
     
     outDir <- paste0(
       projectPath,
@@ -617,7 +637,9 @@ seuratObjectToLocalViewer <- function(
   project_id = "testApp",
   projectPath = "./",
   OsC = NULL,
-  dataMode = "SQLite"
+  dataMode = "SQLite",
+  geneDefault = NULL,
+  dfExpr = NULL
   #host = host,
   #user = db.user,
   #password = db.pwd
@@ -639,6 +661,28 @@ seuratObjectToLocalViewer <- function(
     }
     
     ##
+    ###############################################################################
+  
+    ###############################################################################
+    ## Set gene default if it isnt                                               ##
+    if (is.null(geneDefault)){
+        DefaultAssay(OsC) <- "RNA"
+        my_genes <- rownames(x = OsC@assays$RNA)
+        exp <- FetchData(OsC, my_genes)
+        ExprMatrix <- round(as.matrix(colMeans(exp  > 0)) *100,1)
+        colnames(ExprMatrix)[1] <- "count_cut_off"
+        dfExprMatrix <- data.frame(ExprMatrix)
+        dfExprMatrix[["gene"]] <- row.names(dfExprMatrix)
+        
+        
+        
+        dfPercCellsExpr <- dfExprMatrix
+        #dfPercCellsExpr <- dfPercCellsExpr[dfPercCellsExpr$gene %in% Obio@dataTableList$referenceList$integrated_top30var, ]
+        dfPercCellsExpr <- dfPercCellsExpr[order(dfPercCellsExpr$count_cut_off, decreasing = T),]
+        
+        geneDefault <- as.vector(dfPercCellsExpr[1,"gene"])
+    }
+    ## Done 
     ###############################################################################
     
     ###############################################################################
@@ -701,12 +745,14 @@ seuratObjectToLocalViewer <- function(
     print("Rendering expression data...")
     ## Running this function may take a minute or two, depending on the number of cells in your dataset
     
-    dfExpr <-  biologicViewerSC::createDfExpr(
-      obj = OsC,
-      assay = "RNA",
-      #slot = "data",
-      geneSel = NULL
-    ) 
+    if (is.null(dfExpr)){
+        dfExpr <-  biologicViewerSC::createDfExpr(
+          obj = OsC,
+          assay = "RNA",
+          #slot = "data",
+          geneSel = NULL
+        ) 
+    }
     
     ## In Sqlite version load via function ##
     
@@ -717,9 +763,9 @@ seuratObjectToLocalViewer <- function(
     library("dplyr")
     
     dfIDTable <- dfExpr %>% 
-      select(gene) %>% 
-      distinct() %>% 
-      mutate(gene_id = row_number())
+      dplyr::select(gene) %>% 
+      dplyr::distinct() %>% 
+      dplyr::mutate(gene_id = dplyr::row_number())
     
     
     ## Upload expression table to database 
@@ -748,9 +794,9 @@ seuratObjectToLocalViewer <- function(
     ## Rearrange expression talbe
     ## This step may take a couple of minutes in a large dataset
     dfExpr <- dfExpr %>% 
-      rename(condition = cellID)  %>%  
-      mutate(lg10Expr = round(lg10Expr, 3)) %>% 
-      arrange(gene) 
+        dplyr::rename(condition = cellID)  %>%  
+        dplyr::mutate(lg10Expr = round(lg10Expr, 3)) %>% 
+        dplyr::arrange(gene) 
     
     ## Upload expression table to database 
     
@@ -760,17 +806,17 @@ seuratObjectToLocalViewer <- function(
     colCatList <- biologicSeqTools::inferDBcategories(dfExpr)
     
     biologicSeqTools::upload.datatable.to.database(
-      #host = host,
-      #user = db.user,
-      #password = db.pwd,
-      prim.data.db = primDataDB,
-      dbTableName = expDbTable,
-      df.data = dfExpr,
-      db.col.parameter.list = colCatList,
-      new.table = T,
-      cols2Index = c("gene"),
-      #indexName = c("idx_gene_exp"),
-      mode = dataMode  # Options: "MySQL" and "SQLite"
+        #host = host,
+        #user = db.user,
+        #password = db.pwd,
+        prim.data.db = primDataDB,
+        dbTableName = expDbTable,
+        df.data = dfExpr,
+        db.col.parameter.list = colCatList,
+        new.table = T,
+        cols2Index = c("gene"),
+        #indexName = c("idx_gene_exp"),
+        mode = dataMode  # Options: "MySQL" and "SQLite"
     )
     
     
@@ -957,11 +1003,11 @@ seuratObjectToLocalViewer <- function(
     ## Create sample order and color specification files                         ##
     
     writeAppParameterFiles(
-      project_id = project_id,
-      projectPath = projectPath,
-      params = params,
-      menuParametersFN = "menuParameters.txt",
-      colorParametersFN = "colorParameters.txt"
+        project_id = project_id,
+        projectPath = projectPath,
+        params = params,
+        menuParametersFN = "menuParameters.txt",
+        colorParametersFN = "colorParameters.txt"
     )
     
     ## Done 
@@ -986,15 +1032,15 @@ seuratObjectToLocalViewer <- function(
     ##                                                                       ##
     
     dfID <- data.frame(
-      dataMode = dataMode,
-      url = "",
-      id = "",
-      id2 = "",
-      db =  gsub(paste0("./",project_id, "_app/"),"",primDataDB),
-      coordTb = PCAdbTableName,
-      exprTb = expDbTable,
-      geneTb = geneTb,
-      default = as.vector(dfExpr[1,"gene"])
+        dataMode = dataMode,
+        url = "",
+        id = "",
+        id2 = "",
+        db =  gsub(paste0("./",project_id, "_app/"),"",primDataDB),
+        coordTb = PCAdbTableName,
+        exprTb = expDbTable,
+        geneTb = geneTb,
+        default = geneDefault
     )
     
     FN <- paste0(shinyDataPath, "db.txt")
@@ -1037,7 +1083,8 @@ seuratObjectToViewer <- function(
   db.pwd = "dbAdminPassword",
   db.user = "boeings",
   appDomains = c("shiny-bioinformatics.crick.ac.uk","10.%"),
-  geneDefault = NULL
+  geneDefault = NULL,
+  dfExpr = NULL
   
   
 ){  
@@ -1054,6 +1101,28 @@ seuratObjectToViewer <- function(
   }
   
   ##
+  ###############################################################################
+  
+  ###############################################################################
+  ## Set gene default if it isnt                                               ##
+  if (is.null(geneDefault)){
+    DefaultAssay(OsC) <- "RNA"
+    my_genes <- rownames(x = OsC@assays$RNA)
+    exp <- FetchData(OsC, my_genes)
+    ExprMatrix <- round(as.matrix(colMeans(exp  > 0)) *100,1)
+    colnames(ExprMatrix)[1] <- "count_cut_off"
+    dfExprMatrix <- data.frame(ExprMatrix)
+    dfExprMatrix[["gene"]] <- row.names(dfExprMatrix)
+    
+    
+    
+    dfPercCellsExpr <- dfExprMatrix
+    dfPercCellsExpr <- dfPercCellsExpr[dfPercCellsExpr$gene %in% Obio@dataTableList$referenceList$integrated_top30var, ]
+    dfPercCellsExpr <- dfPercCellsExpr[order(dfPercCellsExpr$count_cut_off, decreasing = T),]
+    
+    geneDefault <- as.vector(dfPercCellsExpr[1,"gene"])
+  }
+  ## Done 
   ###############################################################################
   
   ###############################################################################
@@ -1116,12 +1185,14 @@ seuratObjectToViewer <- function(
   print("Formating expression data. This may take a few minutes, particulary with larger datasets...")
   ## Running this function may take a minute or two, depending on the number of cells in your dataset
   
-  dfExpr <-  biologicViewerSC::createDfExpr(
-    obj = OsC,
-    assay = "RNA",
-    #slot = "data",
-    geneSel = NULL
-  ) 
+  if (is.null(dfExpr)){
+      dfExpr <-  biologicViewerSC::createDfExpr(
+        obj = OsC,
+        assay = "RNA",
+        #slot = "data",
+        geneSel = NULL
+      ) 
+  }
   
   ## In Sqlite version load via function ##
   
@@ -1132,9 +1203,9 @@ seuratObjectToViewer <- function(
   library("dplyr")
   
   dfIDTable <- dfExpr %>% 
-    select(gene) %>% 
-    distinct() %>% 
-    mutate(gene_id = row_number())
+    dplyr::select(gene) %>% 
+    dplyr::distinct() %>% 
+    dplyr::mutate(gene_id = dplyr::row_number())
   
   
   ## Upload expression table to database 
@@ -1149,11 +1220,7 @@ seuratObjectToViewer <- function(
     prim.data.db = dbname,
     dbTableName = geneTb,
     df.data = dfIDTable,
-    db.col.parameter.list = list(
-      "BIGINT(8) NULL DEFAULT NULL" = c("row_names"),
-      "VARCHAR(100) CHARACTER SET utf8 COLLATE utf8_general_ci" = c("gene"),
-      "INT(8) NULL DEFAULT NULL" = c("gene_id")
-    ),
+    db.col.parameter.list = biologicSeqTools::inferDBcategories(dfIDTable),
     new.table = T,
     cols2Index = c("gene"),
     mode = dataMode  # Options: "MySQL" and "SQLite"
@@ -1163,9 +1230,9 @@ seuratObjectToViewer <- function(
   ## Rearrange expression talbe
   ## This step may take a couple of minutes in a large dataset
   dfExpr <- dfExpr %>% 
-    rename(condition = cellID)  %>%  
-    mutate(lg10Expr = round(lg10Expr, 3)) %>% 
-    arrange(gene) 
+    dplyr::rename(condition = cellID)  %>%  
+    dplyr::mutate(lg10Expr = round(lg10Expr, 3)) %>% 
+    dplyr::arrange(gene) 
   
   ## Upload expression table to database 
   
@@ -1431,6 +1498,8 @@ seuratObjectToViewer <- function(
   ##                                                                       ##
   ###########################################################################
   
+  
+  
   ###########################################################################
   ## Create app user and credentials                                       ##
   
@@ -1438,13 +1507,13 @@ seuratObjectToViewer <- function(
       accessFilePath = shinyDataPath,
       hostDbUrl = host,
       appUserName = substr(paste0(project_id, "_aUser"), 1, 30),
-      geneDefault = geneDefault,
       domains = appDomains,
       dbname = dbname,
       tables = c("coordTb" = PCAdbTableName,"exprTb" = expDbTable,"geneTb" = geneTb),
       #recreateProjectUser = TRUE,
       dbAdminUser = db.user,
-      dbAdminPwd = db.pwd
+      dbAdminPwd = db.pwd,
+      geneDefault = geneDefault
   ) 
   
   ## Done app user and credentials                                         ##

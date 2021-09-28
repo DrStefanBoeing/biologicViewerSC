@@ -7,9 +7,9 @@ As input we need only your analysed Seurat object. The app can be used in two mo
 
 Let's start by installing required R-packages:
 ```
-install.packages("devtools")
-devtools::install_github("decusinlabore/biologicSeqTools")
-devtools::install_github("DrStefanBoeing/biologicViewerSC")
+install.packages("remotes")
+remotes::install_github("decusInLabore/biologicSeqTools")
+remotes::install_github("decusinlabore/biologicViewerSC")
 
 ```
 
@@ -34,7 +34,7 @@ testObj <- pbmc_small %>%
     FindClusters(resolution = 0.5)
 
 
-testObj@meta.data$seurat_clusters <- as.character(testObj@meta.data$seurat_clusters)
+
 testObj@meta.data[["meta_Region"]] <- "RandomAcat"
 testObj@meta.data[1:20,"meta_Region"] <- "RandomBcat"
 

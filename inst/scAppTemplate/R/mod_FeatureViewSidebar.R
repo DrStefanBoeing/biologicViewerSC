@@ -33,7 +33,7 @@ mod_FeatureViewSidebar_ui <- function(id){
                 label = "Gene or Category Selection",
                 choices = NULL, #c(as.vector(sort(unique(allGenes)))),
                 selected = geneDefault,
-                options = list(maxOptions = 50, create=TRUE))
+                options = list(maxOptions = 50))
         ),
     
         #uiOutput("dropDownPanel"),
@@ -68,9 +68,9 @@ mod_FeatureViewSidebar_ui <- function(id){
         #####################################################################
         ## Query color input based on 'colorBy' selection                  ##
         conditionalPanel(
-            condition = paste0("input.colorBy == '",numCols,"'", collapse = "||"),
-            colourInput("dotcolor", "Select Low Color", "darkblue"),
-            colourInput("lowColor", "Select High color", "#D3D3D3")
+            condition = paste0("input.colorBy == '", numCols ,"'", collapse = "||"),
+            colourInput("dotcolor", "Select High Color", "darkblue"),
+            colourInput("lowColor", "Select Low color", "#D3D3D3")
         ),
     
     
